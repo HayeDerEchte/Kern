@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>KERN</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background: #111;
+    color: white;
+  }
+
+  h1 { margin-top: 20px; }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(5, 60px);
+    grid-gap: 5px;
+    justify-content: center;
+    margin: 20px auto;
+  }
+
+  .cell {
+    width: 60px;
+    height: 60px;
+    background: #333;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+
+  .destroyed { background: #000; }
+  .p1 { color: #4CAF50; }
+  .p2 { color: #FF5252; }
+
+  #status { margin-top: 15px; }
+</style>
+</head>
+<body>
+
+<h1>KERN</h1>
+<div id="board"></div>
+<div id="status"></div>
+
+<script>
+const size = 5;
+let board = [];
+let players = ["P1", "P2"];
+let current = 0;
+let positions = [null, null];
+let phase = "placement"; // placement -> game
+
+const boardDiv = document.getElementById("board");
+const statusDiv = document.getElementById("status");
+
+function init() {
+  board = Array(size).fill().map(() => Array(size).fill("empty"));
+  boardDiv.innerHTML = "";
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.dataset.x = x;
+      cell.dataset.y = y;
+      cell.onclick = () => handleClick(x, y);
+      boardDiv.appendChild(cell);
+    }
+  }
+
+  updateStatus();
+}
+
+function handleClick(x, y) {
+  if (phase === "placement") {
+    if (board[y][x] !== "empty") return;
+
+    board[y][x] = players[current];
+    positions[current] = {x, y};
+    switchPlayer();
+
+    if (positions[0] && positions[1]) {
+      phase = "game";
+    }
+
+  } else {
+    const pos = positions[current];
+    if (!isAdjacent(pos, x, y)) return;
+    if (board[y][x] !== "empty") return;
+
+    // move
+    board[pos.y][pos.x] = "destroyed";
+    board[y][x] = players[current];
+    positions[current] = {x, y};
+
+    if (!hasMoves(1 - current)) {
+      render();
+      statusDiv.innerText = players[current] + " gewinnt!";
+      return;
+    }
+
+    switchPlayer();
+  }
+
+  render();
+}
+
+function isAdjacent(pos, x, y) {
+  return (
+    (Math.abs(pos.x - x) === 1 && pos.y === y) ||
+    (Math.abs(pos.y - y) === 1 && pos.x === x)
+  );
+}
+
+function hasMoves(player) {
+  const pos = positions[player];
+  if (!pos) return true;
+
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  return dirs.some(([dx, dy]) => {
+    const nx = pos.x + dx;
+    const ny = pos.y + dy;
+    return (
+      nx >= 0 && ny >= 0 && nx < size && ny < size &&
+      board[ny][nx] === "empty"
+    );
+  });
+}
+
+function switchPlayer() {
+  current = 1 - current;
+  updateStatus();
+}
+
+function updateStatus() {
+  if (phase === "placement") {
+    statusDiv.innerText = players[current] + " platziert";
+  } else {
+    statusDiv.innerText = players[current] + " ist am Zug";
+  }
+}
+
+function render() {
+  const cells = document.querySelectorAll(".cell");
+
+  cells.forEach(cell => {
+    const x = cell.dataset.x;
+    const y = cell.dataset.y;
+    cell.className = "cell";
+
+    if (board[y][x] === "destroyed") {
+      cell.classList.add("destroyed");
+      cell.innerText = "";
+    } else if (board[y][x] === "P1") {
+      cell.classList.add("p1");
+      cell.innerText = "●";
+    } else if (board[y][x] === "P2") {
+      cell.classList.add("p2");
+      cell.innerText = "●";
+    } else {
+      cell.innerText = "";
+    }
+  });
+}
+
+init();
+</script>
+
+</body>
+</html>
