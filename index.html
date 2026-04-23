@@ -3,78 +3,69 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Canvas Editor</title>
+<title>Ugly Pro Editor</title>
 <style>
-    body {
-        margin: 0;
-        overflow: hidden;
-        font-family: sans-serif;
-        background: #111;
-    }
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: monospace;
+    background: #cfcfcf;
+}
 
-    canvas {
-        background: white;
-        display: block;
-        touch-action: none;
-    }
+/* Canvas */
+canvas {
+    background: white;
+    display: block;
+}
 
-    .toolbar {
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-        background: #000a;
-        display: flex;
-        gap: 10px;
-        padding: 10px;
-        justify-content: center;
-    }
+/* Kompakte hässliche Toolbar */
+.toolbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: #bdbdbd;
+    border: 2px solid #888;
+    padding: 4px;
+    display: flex;
+    gap: 4px;
+    z-index: 5;
+}
 
-    button, input {
-        padding: 10px;
-        font-size: 16px;
-    }
+button, input {
+    font-size: 12px;
+    padding: 4px;
+    border: 1px solid #555;
+    background: #e0e0e0;
+}
 
-    .warning {
-        position: fixed;
-        top: 0;
-        width: 100%;
-        background: red;
-        color: white;
-        text-align: center;
-        padding: 10px;
-        display: none;
-        z-index: 10;
-    }
+/* Warnung */
+.warning {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    background: #ff0000;
+    color: white;
+    font-size: 12px;
+    text-align: center;
+    padding: 3px;
+}
 
-    @media (orientation: portrait) {
-        .warning {
-            display: block;
-        }
-    }
-
-    /* Landscape Layout */
-    @media (orientation: landscape) {
-        .toolbar {
-            flex-direction: column;
-            width: 120px;
-            height: 100%;
-            right: 0;
-            top: 0;
-        }
-    }
+@media (orientation: landscape) {
+    .warning { display: none; }
+}
 </style>
 </head>
 <body>
 
-<div class="warning">⚠️ Bitte Handy drehen (Querformat)</div>
-
-<canvas id="canvas"></canvas>
-
 <div class="toolbar">
     <input type="file" id="imgInput">
-    <button onclick="addBox()">⬛</button>
-    <input type="range" id="sizeSlider" min="50" max="300" value="100">
+    <button onclick="addRect()">▭</button>
+    <button onclick="addCircle()">◯</button>
 </div>
+
+<div class="warning">TURN DEVICE</div>
+
+<canvas id="canvas"></canvas>
 
 <script>
 const canvas = document.getElementById("canvas");
@@ -82,104 +73,153 @@ const ctx = canvas.getContext("2d");
 
 let objects = [];
 let selected = null;
-let offsetX = 0;
-let offsetY = 0;
+let drag = false;
+let resizeHandle = null;
 
-function resize() {
+function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 }
-window.addEventListener("resize", resize);
-resize();
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let obj of objects) {
-        if (obj.type === "rect") {
-            ctx.fillStyle = obj.color;
-            ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
-        } else if (obj.type === "img") {
-            ctx.drawImage(obj.img, obj.x, obj.y, obj.w, obj.h);
-        }
-    }
-}
-
-function addBox() {
-    objects.push({
-        type: "rect",
-        x: 100,
-        y: 100,
-        w: 100,
-        h: 100,
-        color: "black"
-    });
+function addRect() {
+    objects.push({type:"rect", x:100, y:100, w:120, h:80});
     draw();
 }
 
-document.getElementById("imgInput").addEventListener("change", e => {
-    const file = e.target.files[0];
+function addCircle() {
+    objects.push({type:"circle", x:150, y:150, r:50});
+    draw();
+}
+
+document.getElementById("imgInput").onchange = e => {
     const img = new Image();
     img.onload = () => {
-        objects.push({
-            type: "img",
-            img: img,
-            x: 50,
-            y: 50,
-            w: 100,
-            h: 100
-        });
+        objects.push({type:"img", img, x:50, y:50, w:120, h:120});
         draw();
     };
-    img.src = URL.createObjectURL(file);
-});
+    img.src = URL.createObjectURL(e.target.files[0]);
+};
 
-const slider = document.getElementById("sizeSlider");
-slider.addEventListener("input", () => {
-    if (selected) {
-        selected.w = slider.value;
-        selected.h = slider.value;
-        draw();
-    }
-});
+function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
 
-function getPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const t = e.touches ? e.touches[0] : e;
-    return {
-        x: t.clientX - rect.left,
-        y: t.clientY - rect.top
-    };
+    objects.forEach(o => {
+        ctx.strokeStyle="#000";
+        ctx.fillStyle="#aaa";
+
+        if(o.type==="rect"){
+            ctx.fillRect(o.x,o.y,o.w,o.h);
+        }
+        if(o.type==="circle"){
+            ctx.beginPath();
+            ctx.arc(o.x,o.y,o.r,0,Math.PI*2);
+            ctx.fill();
+        }
+        if(o.type==="img"){
+            ctx.drawImage(o.img,o.x,o.y,o.w,o.h);
+        }
+
+        if(o===selected){
+            drawHandles(o);
+        }
+    });
 }
 
-canvas.addEventListener("touchstart", start);
-canvas.addEventListener("touchmove", move);
-canvas.addEventListener("touchend", () => selected = null);
+function drawHandles(o){
+    ctx.fillStyle="black";
+    let points = getHandles(o);
+    points.forEach(p=>{
+        ctx.fillRect(p.x-5,p.y-5,10,10);
+    });
+}
 
-canvas.addEventListener("mousedown", start);
-canvas.addEventListener("mousemove", move);
-canvas.addEventListener("mouseup", () => selected = null);
+function getHandles(o){
+    if(o.type==="circle"){
+        return [{x:o.x+o.r, y:o.y+o.r}];
+    }
+    return [
+        {x:o.x, y:o.y},
+        {x:o.x+o.w, y:o.y},
+        {x:o.x, y:o.y+o.h},
+        {x:o.x+o.w, y:o.y+o.h}
+    ];
+}
 
-function start(e) {
-    const pos = getPos(e);
-    for (let i = objects.length - 1; i >= 0; i--) {
-        let o = objects[i];
-        if (pos.x > o.x && pos.x < o.x + o.w &&
-            pos.y > o.y && pos.y < o.y + o.h) {
-            selected = o;
-            offsetX = pos.x - o.x;
-            offsetY = pos.y - o.y;
-            slider.value = o.w;
-            break;
+function getPos(e){
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches?e.touches[0]:e;
+    return {x:t.clientX-rect.left, y:t.clientY-rect.top};
+}
+
+canvas.addEventListener("mousedown",start);
+canvas.addEventListener("mousemove",move);
+canvas.addEventListener("mouseup",end);
+
+canvas.addEventListener("touchstart",start);
+canvas.addEventListener("touchmove",move);
+canvas.addEventListener("touchend",end);
+
+function start(e){
+    let p = getPos(e);
+
+    selected = null;
+    resizeHandle = null;
+
+    for(let o of objects.reverse()){
+        // check handles first
+        let handles = getHandles(o);
+        for(let h of handles){
+            if(Math.abs(p.x-h.x)<10 && Math.abs(p.y-h.y)<10){
+                selected = o;
+                resizeHandle = h;
+                return;
+            }
+        }
+
+        // body
+        if(o.type==="rect"||o.type==="img"){
+            if(p.x>o.x&&p.x<o.x+o.w&&p.y>o.y&&p.y<o.y+o.h){
+                selected=o; drag=true; return;
+            }
+        }
+        if(o.type==="circle"){
+            let dx=p.x-o.x, dy=p.y-o.y;
+            if(Math.sqrt(dx*dx+dy*dy)<o.r){
+                selected=o; drag=true; return;
+            }
         }
     }
 }
 
-function move(e) {
-    if (!selected) return;
-    const pos = getPos(e);
-    selected.x = pos.x - offsetX;
-    selected.y = pos.y - offsetY;
+function move(e){
+    if(!selected) return;
+    let p=getPos(e);
+
+    if(resizeHandle){
+        if(selected.type==="circle"){
+            selected.r = Math.abs(p.x-selected.x);
+        } else {
+            selected.w = p.x-selected.x;
+            selected.h = p.y-selected.y;
+        }
+    } else if(drag){
+        if(selected.type==="circle"){
+            selected.x=p.x;
+            selected.y=p.y;
+        } else {
+            selected.x=p.x-selected.w/2;
+            selected.y=p.y-selected.h/2;
+        }
+    }
+
     draw();
+}
+
+function end(){
+    drag=false;
+    resizeHandle=null;
 }
 
 draw();
