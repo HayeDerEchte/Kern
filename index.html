@@ -3,19 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini Canvas Editor</title>
+<title>Canvas Editor</title>
 <style>
     body {
         margin: 0;
         overflow: hidden;
-        background: #111;
         font-family: sans-serif;
+        background: #111;
     }
 
     canvas {
-        background: #222;
-        touch-action: none;
+        background: white;
         display: block;
+        touch-action: none;
     }
 
     .toolbar {
@@ -34,7 +34,25 @@
         font-size: 16px;
     }
 
-    /* Landscape (horizontal) optimiert */
+    .warning {
+        position: fixed;
+        top: 0;
+        width: 100%;
+        background: red;
+        color: white;
+        text-align: center;
+        padding: 10px;
+        display: none;
+        z-index: 10;
+    }
+
+    @media (orientation: portrait) {
+        .warning {
+            display: block;
+        }
+    }
+
+    /* Landscape Layout */
     @media (orientation: landscape) {
         .toolbar {
             flex-direction: column;
@@ -42,18 +60,20 @@
             height: 100%;
             right: 0;
             top: 0;
-            bottom: auto;
         }
     }
 </style>
 </head>
 <body>
 
+<div class="warning">⚠️ Bitte Handy drehen (Querformat)</div>
+
 <canvas id="canvas"></canvas>
 
 <div class="toolbar">
     <input type="file" id="imgInput">
-    <button onclick="addBox()">⬛ Box</button>
+    <button onclick="addBox()">⬛</button>
+    <input type="range" id="sizeSlider" min="50" max="300" value="100">
 </div>
 
 <script>
@@ -91,7 +111,7 @@ function addBox() {
         y: 100,
         w: 100,
         h: 100,
-        color: "red"
+        color: "black"
     });
     draw();
 }
@@ -105,15 +125,24 @@ document.getElementById("imgInput").addEventListener("change", e => {
             img: img,
             x: 50,
             y: 50,
-            w: 150,
-            h: 150
+            w: 100,
+            h: 100
         });
         draw();
     };
     img.src = URL.createObjectURL(file);
 });
 
-function getTouchPos(e) {
+const slider = document.getElementById("sizeSlider");
+slider.addEventListener("input", () => {
+    if (selected) {
+        selected.w = slider.value;
+        selected.h = slider.value;
+        draw();
+    }
+});
+
+function getPos(e) {
     const rect = canvas.getBoundingClientRect();
     const t = e.touches ? e.touches[0] : e;
     return {
@@ -131,7 +160,7 @@ canvas.addEventListener("mousemove", move);
 canvas.addEventListener("mouseup", () => selected = null);
 
 function start(e) {
-    const pos = getTouchPos(e);
+    const pos = getPos(e);
     for (let i = objects.length - 1; i >= 0; i--) {
         let o = objects[i];
         if (pos.x > o.x && pos.x < o.x + o.w &&
@@ -139,6 +168,7 @@ function start(e) {
             selected = o;
             offsetX = pos.x - o.x;
             offsetY = pos.y - o.y;
+            slider.value = o.w;
             break;
         }
     }
@@ -146,7 +176,7 @@ function start(e) {
 
 function move(e) {
     if (!selected) return;
-    const pos = getTouchPos(e);
+    const pos = getPos(e);
     selected.x = pos.x - offsetX;
     selected.y = pos.y - offsetY;
     draw();
