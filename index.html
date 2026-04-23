@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ugly Pro Editor</title>
+
 <style>
 body {
     margin: 0;
@@ -12,11 +13,10 @@ body {
     background: #cfcfcf;
 }
 
-/* 16:9 Canvas Wrapper */
+/* Canvas Center 16:9 */
 #wrap {
     position: absolute;
-    width: 100vw;
-    height: 100vh;
+    inset: 0;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -30,33 +30,38 @@ canvas {
     border: 2px solid #000;
 }
 
-/* UI */
-.toolbar {
+/* UI OVERLAY (fix über Canvas) */
+.ui {
     position: fixed;
     top: 0;
     left: 0;
+    z-index: 9999;
+}
+
+/* Toolbar */
+.toolbar {
     background: #bdbdbd;
     border: 2px solid #888;
     padding: 4px;
+    display: flex;
+    gap: 4px;
 }
 
-button {
-    font-size: 12px;
-    padding: 4px;
-}
-
+/* Dropdown */
 .menu {
-    position: fixed;
-    top: 28px;
-    left: 0;
     background: #d0d0d0;
     border: 2px solid #888;
     display: none;
     flex-direction: column;
 }
 
-.menu button { width:120px; text-align:left; }
+.menu button {
+    width: 120px;
+    text-align: left;
+    font-size: 12px;
+}
 
+/* Warning */
 .warning {
     position: fixed;
     bottom: 0;
@@ -65,26 +70,35 @@ button {
     color: white;
     font-size: 12px;
     text-align: center;
+    z-index: 9999;
 }
-@media (orientation: landscape){ .warning{display:none;} }
+
+@media (orientation: landscape){
+    .warning { display:none; }
+}
 </style>
 </head>
+
 <body>
 
-<div class="toolbar">
-    <button onclick="toggleMenu()">＋ Add</button>
-</div>
+<!-- UI LAYER -->
+<div class="ui">
+    <div class="toolbar">
+        <button onclick="toggleMenu()">＋ Add</button>
+    </div>
 
-<div class="menu" id="menu">
-    <button onclick="addRect()">▭</button>
-    <button onclick="addCircle()">◯</button>
-    <button onclick="imgInput.click()">🖼</button>
+    <div class="menu" id="menu">
+        <button onclick="addRect()">▭</button>
+        <button onclick="addCircle()">◯</button>
+        <button onclick="imgInput.click()">🖼</button>
+    </div>
 </div>
 
 <div class="warning">TURN DEVICE</div>
 
+<!-- CANVAS LAYER -->
 <div id="wrap">
-<canvas id="canvas"></canvas>
+    <canvas id="canvas"></canvas>
 </div>
 
 <input type="file" id="imgInput" style="display:none">
@@ -95,22 +109,31 @@ const ctx=canvas.getContext("2d");
 
 let objects=[], selected=null, drag=false, handle=null;
 
-function resize(){ /* canvas CSS handles ratio */ }
-window.onresize=resize;
+/* Menu */
+function toggleMenu(){
+    let m=document.getElementById("menu");
+    m.style.display = (m.style.display==="flex")?"none":"flex";
+}
+
+/* Canvas size auto (CSS handles 16:9) */
+function fit(){
+    canvas.width = 1920;
+    canvas.height = 1080;
+}
+fit();
 
 /* Add */
-function addRect(){ objects.push({type:"rect",x:100,y:100,w:120,h:80}); draw(); }
-function addCircle(){ objects.push({type:"circle",x:150,y:150,r:50}); draw(); }
+function addRect(){ objects.push({type:"rect",x:100,y:100,w:200,h:120}); draw(); }
+function addCircle(){ objects.push({type:"circle",x:200,y:200,r:60}); draw(); }
 
 imgInput.onchange=e=>{
     let img=new Image();
     img.onload=()=>{
-        // ORIGINAL RATIO FIX
-        let scale=120/img.width;
+        let scale=150/img.width;
         objects.push({
             type:"img",
             img,
-            x:80,y:80,
+            x:100,y:100,
             w:img.width*scale,
             h:img.height*scale,
             ratio:img.width/img.height
@@ -119,12 +142,6 @@ imgInput.onchange=e=>{
     };
     img.src=URL.createObjectURL(e.target.files[0]);
 };
-
-/* Menu */
-function toggleMenu(){
-    let m=document.getElementById("menu");
-    m.style.display=m.style.display==="flex"?"none":"flex";
-}
 
 /* Draw */
 function draw(){
@@ -162,20 +179,24 @@ function getHandles(o){
         return [{x:o.x+o.r,y:o.y}];
     }
     return [
-        {x:o.x,y:o.y,corner:true},
-        {x:o.x+o.w,y:o.y,corner:true},
-        {x:o.x,y:o.y+o.h,corner:true},
-        {x:o.x+o.w,y:o.y+o.h,corner:true}
+        {x:o.x,y:o.y},
+        {x:o.x+o.w,y:o.y},
+        {x:o.x,y:o.y+o.h},
+        {x:o.x+o.w,y:o.y+o.h}
     ];
 }
 
-/* Input */
+/* Input coords fix (16:9 mapping safe) */
 function pos(e){
     let r=canvas.getBoundingClientRect();
     let t=e.touches?e.touches[0]:e;
+
+    let scaleX = canvas.width / r.width;
+    let scaleY = canvas.height / r.height;
+
     return {
-        x:(t.clientX-r.left)*(canvas.width/r.width),
-        y:(t.clientY-r.top)*(canvas.height/r.height)
+        x:(t.clientX-r.left)*scaleX,
+        y:(t.clientY-r.top)*scaleY
     };
 }
 
@@ -192,21 +213,8 @@ function start(e){
     selected=null; handle=null;
 
     for(let o of [...objects].reverse()){
-        for(let h of getHandles(o)){
-            if(Math.abs(p.x-h.x)<10 && Math.abs(p.y-h.y)<10){
-                selected=o; handle=h; return;
-            }
-        }
-
-        if(o.type==="rect"||o.type==="img"){
+        if(o.type!=="circle"){
             if(p.x>o.x&&p.x<o.x+o.w&&p.y>o.y&&p.y<o.y+o.h){
-                selected=o; drag=true; return;
-            }
-        }
-
-        if(o.type==="circle"){
-            let dx=p.x-o.x, dy=p.y-o.y;
-            if(Math.sqrt(dx*dx+dy*dy)<o.r){
                 selected=o; drag=true; return;
             }
         }
@@ -217,24 +225,10 @@ function move(e){
     if(!selected) return;
     let p=pos(e);
 
-    if(handle){
-        if(selected.type==="img"){
-            // PROPORTIONAL ONLY (NO STRETCH EVER)
-            let newW = p.x - selected.x;
-            selected.w = newW;
-            selected.h = newW / selected.ratio;
-        }
-        else if(selected.type==="rect"){
-            selected.w = p.x - selected.x;
-            selected.h = p.y - selected.y;
-        }
-        else if(selected.type==="circle"){
-            selected.r = Math.abs(p.x-selected.x);
-        }
-    }
-    else if(drag){
+    if(drag){
         if(selected.type==="circle"){
-            selected.x=p.x; selected.y=p.y;
+            selected.x=p.x;
+            selected.y=p.y;
         } else {
             selected.x=p.x-selected.w/2;
             selected.y=p.y-selected.h/2;
@@ -246,7 +240,6 @@ function move(e){
 
 function end(){
     drag=false;
-    handle=null;
 }
 
 draw();
