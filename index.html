@@ -2,171 +2,157 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>KERN</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Canvas Editor</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    text-align: center;
-    background: #111;
-    color: white;
-  }
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: #111;
+        font-family: sans-serif;
+    }
 
-  h1 { margin-top: 20px; }
+    canvas {
+        background: #222;
+        touch-action: none;
+        display: block;
+    }
 
-  #board {
-    display: grid;
-    grid-template-columns: repeat(5, 60px);
-    grid-gap: 5px;
-    justify-content: center;
-    margin: 20px auto;
-  }
+    .toolbar {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        background: #000a;
+        display: flex;
+        gap: 10px;
+        padding: 10px;
+        justify-content: center;
+    }
 
-  .cell {
-    width: 60px;
-    height: 60px;
-    background: #333;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-  }
+    button, input {
+        padding: 10px;
+        font-size: 16px;
+    }
 
-  .destroyed { background: #000; }
-  .p1 { color: #4CAF50; }
-  .p2 { color: #FF5252; }
-
-  #status { margin-top: 15px; }
+    /* Landscape (horizontal) optimiert */
+    @media (orientation: landscape) {
+        .toolbar {
+            flex-direction: column;
+            width: 120px;
+            height: 100%;
+            right: 0;
+            top: 0;
+            bottom: auto;
+        }
+    }
 </style>
 </head>
 <body>
 
-<h1>KERN</h1>
-<div id="board"></div>
-<div id="status"></div>
+<canvas id="canvas"></canvas>
+
+<div class="toolbar">
+    <input type="file" id="imgInput">
+    <button onclick="addBox()">⬛ Box</button>
+</div>
 
 <script>
-const size = 5;
-let board = [];
-let players = ["P1", "P2"];
-let current = 0;
-let positions = [null, null];
-let phase = "placement"; // placement -> game
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
-const boardDiv = document.getElementById("board");
-const statusDiv = document.getElementById("status");
+let objects = [];
+let selected = null;
+let offsetX = 0;
+let offsetY = 0;
 
-function init() {
-  board = Array(size).fill().map(() => Array(size).fill("empty"));
-  boardDiv.innerHTML = "";
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
 
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      cell.dataset.x = x;
-      cell.dataset.y = y;
-      cell.onclick = () => handleClick(x, y);
-      boardDiv.appendChild(cell);
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let obj of objects) {
+        if (obj.type === "rect") {
+            ctx.fillStyle = obj.color;
+            ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
+        } else if (obj.type === "img") {
+            ctx.drawImage(obj.img, obj.x, obj.y, obj.w, obj.h);
+        }
     }
-  }
-
-  updateStatus();
 }
 
-function handleClick(x, y) {
-  if (phase === "placement") {
-    if (board[y][x] !== "empty") return;
+function addBox() {
+    objects.push({
+        type: "rect",
+        x: 100,
+        y: 100,
+        w: 100,
+        h: 100,
+        color: "red"
+    });
+    draw();
+}
 
-    board[y][x] = players[current];
-    positions[current] = {x, y};
-    switchPlayer();
+document.getElementById("imgInput").addEventListener("change", e => {
+    const file = e.target.files[0];
+    const img = new Image();
+    img.onload = () => {
+        objects.push({
+            type: "img",
+            img: img,
+            x: 50,
+            y: 50,
+            w: 150,
+            h: 150
+        });
+        draw();
+    };
+    img.src = URL.createObjectURL(file);
+});
 
-    if (positions[0] && positions[1]) {
-      phase = "game";
+function getTouchPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return {
+        x: t.clientX - rect.left,
+        y: t.clientY - rect.top
+    };
+}
+
+canvas.addEventListener("touchstart", start);
+canvas.addEventListener("touchmove", move);
+canvas.addEventListener("touchend", () => selected = null);
+
+canvas.addEventListener("mousedown", start);
+canvas.addEventListener("mousemove", move);
+canvas.addEventListener("mouseup", () => selected = null);
+
+function start(e) {
+    const pos = getTouchPos(e);
+    for (let i = objects.length - 1; i >= 0; i--) {
+        let o = objects[i];
+        if (pos.x > o.x && pos.x < o.x + o.w &&
+            pos.y > o.y && pos.y < o.y + o.h) {
+            selected = o;
+            offsetX = pos.x - o.x;
+            offsetY = pos.y - o.y;
+            break;
+        }
     }
-
-  } else {
-    const pos = positions[current];
-    if (!isAdjacent(pos, x, y)) return;
-    if (board[y][x] !== "empty") return;
-
-    // move
-    board[pos.y][pos.x] = "destroyed";
-    board[y][x] = players[current];
-    positions[current] = {x, y};
-
-    if (!hasMoves(1 - current)) {
-      render();
-      statusDiv.innerText = players[current] + " gewinnt!";
-      return;
-    }
-
-    switchPlayer();
-  }
-
-  render();
 }
 
-function isAdjacent(pos, x, y) {
-  return (
-    (Math.abs(pos.x - x) === 1 && pos.y === y) ||
-    (Math.abs(pos.y - y) === 1 && pos.x === x)
-  );
+function move(e) {
+    if (!selected) return;
+    const pos = getTouchPos(e);
+    selected.x = pos.x - offsetX;
+    selected.y = pos.y - offsetY;
+    draw();
 }
 
-function hasMoves(player) {
-  const pos = positions[player];
-  if (!pos) return true;
-
-  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-  return dirs.some(([dx, dy]) => {
-    const nx = pos.x + dx;
-    const ny = pos.y + dy;
-    return (
-      nx >= 0 && ny >= 0 && nx < size && ny < size &&
-      board[ny][nx] === "empty"
-    );
-  });
-}
-
-function switchPlayer() {
-  current = 1 - current;
-  updateStatus();
-}
-
-function updateStatus() {
-  if (phase === "placement") {
-    statusDiv.innerText = players[current] + " platziert";
-  } else {
-    statusDiv.innerText = players[current] + " ist am Zug";
-  }
-}
-
-function render() {
-  const cells = document.querySelectorAll(".cell");
-
-  cells.forEach(cell => {
-    const x = cell.dataset.x;
-    const y = cell.dataset.y;
-    cell.className = "cell";
-
-    if (board[y][x] === "destroyed") {
-      cell.classList.add("destroyed");
-      cell.innerText = "";
-    } else if (board[y][x] === "P1") {
-      cell.classList.add("p1");
-      cell.innerText = "●";
-    } else if (board[y][x] === "P2") {
-      cell.classList.add("p2");
-      cell.innerText = "●";
-    } else {
-      cell.innerText = "";
-    }
-  });
-}
-
-init();
+draw();
 </script>
 
 </body>
