@@ -73,7 +73,21 @@
   let perClick = 1;
   let upgradeCost = 10;
 
-  // LOAD SAVE
+  // ===== ZOOM FIX =====
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', function (event) {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      event.preventDefault(); // kills double-tap zoom
+    }
+    lastTouchEnd = now;
+  }, false);
+
+  document.addEventListener('gesturestart', function (e) {
+    e.preventDefault(); // kills pinch zoom (iOS)
+  });
+
+  // ===== SAVE / LOAD =====
   function loadGame() {
     const save = JSON.parse(localStorage.getItem("clickerSave"));
     if (save) {
@@ -83,7 +97,6 @@
     }
   }
 
-  // SAVE GAME
   function saveGame() {
     localStorage.setItem("clickerSave", JSON.stringify({
       score,
