@@ -1,18 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Minimal Clicker</title>
 <style>
-  body {
+  html, body {
     margin: 0;
-    font-family: sans-serif;
+    padding: 0;
     background: #000;
     color: #fff;
+    font-family: sans-serif;
+    height: 100%;
+    touch-action: manipulation;
+  }
+
+  body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
     text-align: center;
   }
 
@@ -40,6 +45,7 @@
     border: none;
     border-radius: 10px;
     margin-bottom: 10px;
+    touch-action: manipulation;
   }
 
   button:active {
@@ -67,6 +73,25 @@
   let perClick = 1;
   let upgradeCost = 10;
 
+  // LOAD SAVE
+  function loadGame() {
+    const save = JSON.parse(localStorage.getItem("clickerSave"));
+    if (save) {
+      score = save.score || 0;
+      perClick = save.perClick || 1;
+      upgradeCost = save.upgradeCost || 10;
+    }
+  }
+
+  // SAVE GAME
+  function saveGame() {
+    localStorage.setItem("clickerSave", JSON.stringify({
+      score,
+      perClick,
+      upgradeCost
+    }));
+  }
+
   function updateUI() {
     document.getElementById("score").innerText = score;
     document.querySelector(".upgrade").innerText =
@@ -76,6 +101,7 @@
   function clickScore() {
     score += perClick;
     updateUI();
+    saveGame();
   }
 
   function buyUpgrade() {
@@ -84,9 +110,11 @@
       perClick++;
       upgradeCost = Math.floor(upgradeCost * 1.5);
       updateUI();
+      saveGame();
     }
   }
 
+  loadGame();
   updateUI();
 </script>
 
