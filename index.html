@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Minimal Clicker</title>
+<title>Lazy Clicker</title>
 <style>
   html, body {
     margin: 0;
-    padding: 0;
     background: #000;
     color: #fff;
     font-family: sans-serif;
@@ -23,33 +22,32 @@
 
   .container {
     width: 100%;
-    max-width: 300px;
-  }
-
-  h1 {
-    font-size: 20px;
-    margin-bottom: 20px;
+    max-width: 320px;
   }
 
   .score {
-    font-size: 32px;
-    margin: 20px 0;
+    font-size: 36px;
+    margin: 10px 0;
+  }
+
+  .tutorial {
+    font-size: 13px;
+    opacity: 0.7;
+    margin-bottom: 15px;
   }
 
   button {
     width: 100%;
-    padding: 20px;
-    font-size: 18px;
-    background: #fff;
-    color: #000;
+    padding: 16px;
+    margin: 6px 0;
     border: none;
     border-radius: 10px;
-    margin-bottom: 10px;
-    touch-action: manipulation;
+    font-size: 15px;
   }
 
-  button:active {
-    opacity: 0.7;
+  .tap {
+    background: #fff;
+    color: #000;
   }
 
   .upgrade {
@@ -62,73 +60,120 @@
 <body>
 
 <div class="container">
-  <h1>Clicker</h1>
   <div class="score" id="score">0</div>
-  <button onclick="clickScore()">TAP</button>
-  <button class="upgrade" onclick="buyUpgrade()">+1 per click (10)</button>
+  <div class="tutorial" id="tutorial">tap. get number. don’t overthink it.</div>
+
+  <button class="tap" id="tapBtn">TAP</button>
+
+  <button class="upgrade" id="clickUpgrade"></button>
+  <button class="upgrade" id="autoUpgrade"></button>
+  <button class="upgrade" id="multiUpgrade"></button>
 </div>
 
 <script>
   let score = 0;
   let perClick = 1;
-  let upgradeCost = 10;
+  let auto = 0;
+  let multi = 1;
 
-  // ===== ZOOM FIX =====
-  let lastTouchEnd = 0;
-  document.addEventListener('touchend', function (event) {
-    const now = Date.now();
-    if (now - lastTouchEnd <= 300) {
-      event.preventDefault(); // kills double-tap zoom
-    }
-    lastTouchEnd = now;
-  }, false);
+  let clickLvl = 0;
+  let autoLvl = 0;
+  let multiLvl = 0;
 
-  document.addEventListener('gesturestart', function (e) {
-    e.preventDefault(); // kills pinch zoom (iOS)
-  });
-
-  // ===== SAVE / LOAD =====
-  function loadGame() {
-    const save = JSON.parse(localStorage.getItem("clickerSave"));
-    if (save) {
-      score = save.score || 0;
-      perClick = save.perClick || 1;
-      upgradeCost = save.upgradeCost || 10;
-    }
+  function cost(base, lvl, scale) {
+    return Math.floor(base * Math.pow(scale, lvl));
   }
 
-  function saveGame() {
-    localStorage.setItem("clickerSave", JSON.stringify({
-      score,
-      perClick,
-      upgradeCost
+  function load() {
+    const s = JSON.parse(localStorage.getItem("lazyClicker"));
+    if (s) Object.assign(window, s);
+  }
+
+  function save() {
+    localStorage.setItem("lazyClicker", JSON.stringify({
+      score, perClick, auto, multi,
+      clickLvl, autoLvl, multiLvl
     }));
   }
 
-  function updateUI() {
-    document.getElementById("score").innerText = score;
-    document.querySelector(".upgrade").innerText =
-      "+" + perClick + " per click (" + upgradeCost + ")";
+  function update() {
+    document.getElementById("score").innerText = Math.floor(score);
+
+    document.getElementById("clickUpgrade").innerText =
+      "+tap power (" + cost(10, clickLvl, 1.4) + ")";
+
+    document.getElementById("autoUpgrade").innerText =
+      "+auto (" + cost(25, autoLvl, 1.5) + ")";
+
+    document.getElementById("multiUpgrade").innerText =
+      "x multiplier (" + cost(50, multiLvl, 1.6) + ")";
   }
 
-  function clickScore() {
-    score += perClick;
-    updateUI();
-    saveGame();
+  function tap() {
+    score += perClick * multi;
+    update();
+    save();
   }
 
-  function buyUpgrade() {
-    if (score >= upgradeCost) {
-      score -= upgradeCost;
-      perClick++;
-      upgradeCost = Math.floor(upgradeCost * 1.5);
-      updateUI();
-      saveGame();
+  function buyClick() {
+    let c = cost(10, clickLvl, 1.4);
+    if (score >= c) {
+      score -= c;
+      perClick += 1;
+      clickLvl++;
+      update();
+      save();
     }
   }
 
-  loadGame();
-  updateUI();
+  function buyAuto() {
+    let c = cost(25, autoLvl, 1.5);
+    if (score >= c) {
+      score -= c;
+      auto += 0.5;
+      autoLvl++;
+      update();
+      save();
+    }
+  }
+
+  function buyMulti() {
+    let c = cost(50, multiLvl, 1.6);
+    if (score >= c) {
+      score -= c;
+      multi += 0.2;
+      multiLvl++;
+      update();
+      save();
+    }
+  }
+
+  // auto income
+  setInterval(() => {
+    score += auto * multi;
+    update();
+    save();
+  }, 1000);
+
+  // tutorial changes slightly
+  function tutorialUpdate() {
+    if (score > 20) {
+      document.getElementById("tutorial").innerText = "ok now buy something";
+    }
+    if (score > 100) {
+      document.getElementById("tutorial").innerText = "yeah… this is your life now";
+    }
+  }
+
+  setInterval(tutorialUpdate, 1000);
+
+  document.getElementById("tapBtn").addEventListener("pointerdown", tap);
+  document.getElementById("clickUpgrade").addEventListener("pointerdown", buyClick);
+  document.getElementById("autoUpgrade").addEventListener("pointerdown", buyAuto);
+  document.getElementById("multiUpgrade").addEventListener("pointerdown", buyMulti);
+
+  load();
+  update();
 </script>
 
 </body>
