@@ -42,7 +42,6 @@
     border: 1px solid #fff;
   }
 
-  /* POPUP */
   .modal {
     position: fixed;
     inset: 0;
@@ -55,13 +54,13 @@
   .box {
     border: 1px solid #fff;
     padding: 20px;
-    max-width: 280px;
+    width: 260px;
   }
 
   .box button {
-    margin-top: 10px;
     background: #fff;
     color: #000;
+    margin-top: 10px;
   }
 </style>
 </head>
@@ -72,15 +71,14 @@
 
   <button class="tap" id="tapBtn">TAP</button>
 
-  <button class="upgrade" id="clickUpgrade"></button>
-  <button class="upgrade" id="autoUpgrade"></button>
-  <button class="upgrade" id="multiUpgrade"></button>
+  <button class="upgrade" id="clickUp"></button>
+  <button class="upgrade" id="autoUp"></button>
+  <button class="upgrade" id="multiUp"></button>
 </div>
 
-<!-- OFFLINE POPUP -->
 <div class="modal" id="modal">
   <div class="box">
-    <div id="offlineText">you earned something</div>
+    <div id="offlineText"></div>
     <button onclick="closeModal()">ok</button>
   </div>
 </div>
@@ -95,42 +93,44 @@ let clickLvl = 0;
 let autoLvl = 0;
 let multiLvl = 0;
 
-function cost(b,l,s){ return Math.floor(b * Math.pow(s,l)); }
+const scoreEl = document.getElementById("score");
+
+function cost(base, lvl, scale){
+  return Math.floor(base * Math.pow(scale, lvl));
+}
 
 /* LOAD */
 function load(){
-  const s = JSON.parse(localStorage.getItem("lazyClicker"));
-  if (s){
-    score = s.score ?? 0;
-    perClick = s.perClick ?? 1;
-    auto = s.auto ?? 0;
-    multi = s.multi ?? 1;
+  const save = JSON.parse(localStorage.getItem("clicker"));
 
-    clickLvl = s.clickLvl ?? 0;
-    autoLvl = s.autoLvl ?? 0;
-    multiLvl = s.multiLvl ?? 0;
+  if(save){
+    score = save.score || 0;
+    perClick = save.perClick || 1;
+    auto = save.auto || 0;
+    multi = save.multi || 1;
+
+    clickLvl = save.clickLvl || 0;
+    autoLvl = save.autoLvl || 0;
+    multiLvl = save.multiLvl || 0;
   }
 
-  // OFFLINE EARNINGS
   const last = localStorage.getItem("lastTime");
-  let earned = 0;
-
-  if (last){
-    const diff = (Date.now() - parseInt(last)) / 1000;
+  if(last){
+    const diff = (Date.now() - Number(last)) / 1000;
     const hours = Math.min(diff / 3600, 8);
 
-    earned = Math.floor(hours * auto * 60 * multi);
+    const earned = Math.floor(hours * auto * 60 * multi);
 
-    if (earned > 0){
+    if(earned > 0){
       score += earned;
-      showModal(earned);
+      showOffline(earned);
     }
   }
 }
 
 /* SAVE */
 function save(){
-  localStorage.setItem("lazyClicker", JSON.stringify({
+  localStorage.setItem("clicker", JSON.stringify({
     score, perClick, auto, multi,
     clickLvl, autoLvl, multiLvl
   }));
@@ -142,9 +142,9 @@ function save(){
 function update(){
   scoreEl.innerText = Math.floor(score);
 
-  clickUpgrade.innerText = "+tap ("+cost(10,clickLvl,1.4)+")";
-  autoUpgrade.innerText = "+auto ("+cost(25,autoLvl,1.5)+")";
-  multiUpgrade.innerText = "x multi ("+cost(50,multiLvl,1.6)+")";
+  clickUp.innerText = "+tap (" + cost(10,clickLvl,1.4) + ")";
+  autoUp.innerText = "+auto (" + cost(25,autoLvl,1.5) + ")";
+  multiUp.innerText = "x multi (" + cost(50,multiLvl,1.6) + ")";
 }
 
 /* GAME */
@@ -155,32 +155,38 @@ function tap(){
 
 function buyClick(){
   let c = cost(10,clickLvl,1.4);
-  if(score>=c){
-    score-=c; perClick++; clickLvl++;
+  if(score >= c){
+    score -= c;
+    perClick++;
+    clickLvl++;
     update(); save();
   }
 }
 
 function buyAuto(){
   let c = cost(25,autoLvl,1.5);
-  if(score>=c){
-    score-=c; auto+=0.5; autoLvl++;
+  if(score >= c){
+    score -= c;
+    auto += 0.5;
+    autoLvl++;
     update(); save();
   }
 }
 
 function buyMulti(){
   let c = cost(50,multiLvl,1.6);
-  if(score>=c){
-    score-=c; multi+=0.2; multiLvl++;
+  if(score >= c){
+    score -= c;
+    multi += 0.2;
+    multiLvl++;
     update(); save();
   }
 }
 
-/* POPUP */
-function showModal(earned){
+/* OFFLINE POPUP */
+function showOffline(amount){
   document.getElementById("offlineText").innerText =
-    "offline earnings: +" + earned;
+    "offline earnings: +" + amount;
 
   document.getElementById("modal").style.display = "flex";
 }
@@ -191,9 +197,9 @@ function closeModal(){
 
 /* EVENTS */
 tapBtn.onpointerdown = tap;
-clickUpgrade.onpointerdown = buyClick;
-autoUpgrade.onpointerdown = buyAuto;
-multiUpgrade.onpointerdown = buyMulti;
+clickUp.onpointerdown = buyClick;
+autoUp.onpointerdown = buyAuto;
+multiUp.onpointerdown = buyMulti;
 
 /* AUTO */
 setInterval(()=>{
