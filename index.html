@@ -22,149 +22,177 @@
 
   .container {
     width: 100%;
-    max-width: 330px;
+    max-width: 320px;
   }
 
   .score {
-    font-size: 34px;
+    font-size: 36px;
     margin: 10px 0;
   }
 
+  .tutorial {
+    font-size: 13px;
+    opacity: 0.8;
+    margin-bottom: 10px;
+    transition: opacity 0.4s;
+  }
+
+  .tutorial.hide { opacity: 0; }
+
   button {
     width: 100%;
-    padding: 14px;
-    margin: 5px 0;
+    padding: 16px;
+    margin: 6px 0;
     border-radius: 10px;
-    font-size: 14px;
+    font-size: 15px;
     border: none;
   }
 
   .tap { background: #fff; color: #000; }
   .upgrade { background: #111; color: #fff; border: 1px solid #fff; }
+
+  .popup {
+    font-size: 14px;
+    margin-bottom: 8px;
+    opacity: 0.8;
+  }
 </style>
 </head>
 <body>
 
 <div class="container">
   <div class="score" id="score">0</div>
+  <div class="popup" id="offline"></div>
+  <div class="tutorial" id="tutorial"></div>
 
   <button class="tap" id="tapBtn">TAP</button>
 
   <button class="upgrade" id="clickUpgrade"></button>
   <button class="upgrade" id="autoUpgrade"></button>
+  <button class="upgrade" id="speedUpgrade"></button>
   <button class="upgrade" id="multiUpgrade"></button>
-  <button class="upgrade" id="critChanceUpgrade"></button>
-  <button class="upgrade" id="critPowerUpgrade"></button>
-  <button class="upgrade" id="autoSpeedUpgrade"></button>
 </div>
 
 <script>
 let score=0, perClick=1, auto=0, multi=1;
-let critChance=0, critPower=2, autoSpeed=1000;
-
-let combo=0, lastTap=0;
-
-let lvl={c:0,a:0,m:0,cc:0,cp:0,as:0};
+let clickLvl=0, autoLvl=0, speedLvl=0, multiLvl=0;
+let autoInterval = 1000;
+let tutorialStep=0;
 
 function cost(b,l,s){ return Math.floor(b*Math.pow(s,l)); }
 
 function load(){
-  let s=JSON.parse(localStorage.getItem("clickerPlus"));
+  const s = JSON.parse(localStorage.getItem("lazyClicker"));
   if(s) Object.assign(window,s);
 }
 
 function save(){
-  localStorage.setItem("clickerPlus",JSON.stringify({
-    score,perClick,auto,multi,critChance,critPower,autoSpeed,combo,lastTap,lvl
+  localStorage.setItem("lazyClicker", JSON.stringify({
+    score, perClick, auto, multi,
+    clickLvl, autoLvl, speedLvl, multiLvl,
+    autoInterval, tutorialStep,
+    lastTime: Date.now()
   }));
 }
 
 function update(){
-  scoreEl.innerText=Math.floor(score);
+  scoreEl.innerText = Math.floor(score);
 
-  clickUpgrade.innerText="+tap ("+cost(10,lvl.c,1.4)+")";
-  autoUpgrade.innerText="+auto ("+cost(25,lvl.a,1.5)+")";
-  multiUpgrade.innerText="x multi ("+cost(50,lvl.m,1.6)+")";
-  critChanceUpgrade.innerText="+crit% ("+cost(80,lvl.cc,1.6)+")";
-  critPowerUpgrade.innerText="+crit dmg ("+cost(120,lvl.cp,1.7)+")";
-  autoSpeedUpgrade.innerText="faster auto ("+cost(150,lvl.as,1.8)+")";
+  clickUpgrade.innerText = "+tap ("+cost(10,clickLvl,1.4)+")";
+  autoUpgrade.innerText = "+auto ("+cost(25,autoLvl,1.5)+")";
+  speedUpgrade.innerText = "auto speed ("+cost(40,speedLvl,1.6)+")";
+  multiUpgrade.innerText = "x multi ("+cost(50,multiLvl,1.6)+")";
 }
 
-function tap(){
-  let now=Date.now();
+// ===== OFFLINE EARNINGS =====
+function handleOffline(){
+  const saveData = JSON.parse(localStorage.getItem("lazyClicker"));
+  if(!saveData || !saveData.lastTime) return;
 
-  // combo system
-  if(now-lastTap<500) combo++;
-  else combo=0;
-  lastTap=now;
+  let diff = (Date.now() - saveData.lastTime)/1000;
+  let gain = diff * auto * multi;
 
-  let gain=perClick*multi*(1+combo*0.05);
-
-  // crit
-  if(Math.random()<critChance){
-    gain*=critPower;
+  if(gain > 0){
+    score += gain;
+    offline.innerText = "+ " + Math.floor(gain) + " while offline";
+    setTimeout(()=> offline.innerText="", 4000);
   }
+}
 
-  score+=gain;
-  update(); save();
+// ===== GAME ACTIONS =====
+function tap(){
+  score += perClick * multi;
+  if(tutorialStep===0) tutorialStep=1;
+  updateTutorial(); update(); save();
 }
 
 function buyClick(){
-  let c=cost(10,lvl.c,1.4);
-  if(score>=c){score-=c;perClick++;lvl.c++;update();save();}
-}
-
-function buyAuto(){
-  let c=cost(25,lvl.a,1.5);
-  if(score>=c){score-=c;auto+=0.5;lvl.a++;update();save();}
-}
-
-function buyMulti(){
-  let c=cost(50,lvl.m,1.6);
-  if(score>=c){score-=c;multi+=0.2;lvl.m++;update();save();}
-}
-
-function buyCritChance(){
-  let c=cost(80,lvl.cc,1.6);
-  if(score>=c){score-=c;critChance+=0.02;lvl.cc++;update();save();}
-}
-
-function buyCritPower(){
-  let c=cost(120,lvl.cp,1.7);
-  if(score>=c){score-=c;critPower+=0.5;lvl.cp++;update();save();}
-}
-
-function buyAutoSpeed(){
-  let c=cost(150,lvl.as,1.8);
+  let c = cost(10,clickLvl,1.4);
   if(score>=c){
-    score-=c;
-    autoSpeed*=0.9;
-    lvl.as++;
-    restartAuto();
+    score-=c; perClick++; clickLvl++;
     update(); save();
   }
 }
 
-let autoLoop;
-function restartAuto(){
-  clearInterval(autoLoop);
-  autoLoop=setInterval(()=>{
-    score+=auto*multi;
+function buyAuto(){
+  let c = cost(25,autoLvl,1.5);
+  if(score>=c){
+    score-=c; auto+=0.5; autoLvl++;
     update(); save();
-  },autoSpeed);
+  }
 }
 
+function buySpeed(){
+  let c = cost(40,speedLvl,1.6);
+  if(score>=c){
+    score-=c;
+    speedLvl++;
+    autoInterval *= 0.85; // faster
+    startAutoLoop();
+    update(); save();
+  }
+}
+
+function buyMulti(){
+  let c = cost(50,multiLvl,1.6);
+  if(score>=c){
+    score-=c; multi+=0.2; multiLvl++;
+    update(); save();
+  }
+}
+
+// ===== AUTO LOOP =====
+let loop;
+function startAutoLoop(){
+  clearInterval(loop);
+  loop = setInterval(()=>{
+    score += auto * multi;
+    update(); save();
+  }, autoInterval);
+}
+
+// ===== TUTORIAL =====
+function updateTutorial(){
+  if(tutorialStep===0) tutorial.innerText="tap it";
+  else if(tutorialStep===1) tutorial.innerText="yeah ok buy stuff";
+  else if(tutorialStep>=2){
+    tutorial.innerText="you got it";
+    setTimeout(()=> tutorial.classList.add("hide"), 800);
+  }
+}
+
+// ===== INIT =====
 tapBtn.onpointerdown=tap;
 clickUpgrade.onpointerdown=buyClick;
 autoUpgrade.onpointerdown=buyAuto;
+speedUpgrade.onpointerdown=buySpeed;
 multiUpgrade.onpointerdown=buyMulti;
-critChanceUpgrade.onpointerdown=buyCritChance;
-critPowerUpgrade.onpointerdown=buyCritPower;
-autoSpeedUpgrade.onpointerdown=buyAutoSpeed;
 
 load();
+handleOffline();
 update();
-restartAuto();
+updateTutorial();
+startAutoLoop();
 </script>
 
 </body>
