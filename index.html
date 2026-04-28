@@ -1,248 +1,93 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ugly Pro Editor</title>
-
+<title>Minimal Clicker</title>
 <style>
-body {
+  body {
     margin: 0;
-    overflow: hidden;
-    font-family: monospace;
-    background: #cfcfcf;
-}
-
-/* Canvas Center 16:9 */
-#wrap {
-    position: absolute;
-    inset: 0;
+    font-family: sans-serif;
+    background: #000;
+    color: #fff;
     display: flex;
     justify-content: center;
     align-items: center;
-}
-
-canvas {
-    background: white;
-    aspect-ratio: 16 / 9;
-    width: min(100vw, calc(100vh * 16 / 9));
-    height: min(100vh, calc(100vw * 9 / 16));
-    border: 2px solid #000;
-}
-
-/* UI OVERLAY (fix über Canvas) */
-.ui {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 9999;
-}
-
-/* Toolbar */
-.toolbar {
-    background: #bdbdbd;
-    border: 2px solid #888;
-    padding: 4px;
-    display: flex;
-    gap: 4px;
-}
-
-/* Dropdown */
-.menu {
-    background: #d0d0d0;
-    border: 2px solid #888;
-    display: none;
-    flex-direction: column;
-}
-
-.menu button {
-    width: 120px;
-    text-align: left;
-    font-size: 12px;
-}
-
-/* Warning */
-.warning {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    background: red;
-    color: white;
-    font-size: 12px;
+    height: 100vh;
     text-align: center;
-    z-index: 9999;
-}
+  }
 
-@media (orientation: landscape){
-    .warning { display:none; }
-}
+  .container {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  h1 {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+
+  .score {
+    font-size: 32px;
+    margin: 20px 0;
+  }
+
+  button {
+    width: 100%;
+    padding: 20px;
+    font-size: 18px;
+    background: #fff;
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+
+  button:active {
+    opacity: 0.7;
+  }
+
+  .upgrade {
+    background: #111;
+    color: #fff;
+    border: 1px solid #fff;
+  }
 </style>
 </head>
-
 <body>
 
-<!-- UI LAYER -->
-<div class="ui">
-    <div class="toolbar">
-        <button onclick="toggleMenu()">＋ Add</button>
-    </div>
-
-    <div class="menu" id="menu">
-        <button onclick="addRect()">▭</button>
-        <button onclick="addCircle()">◯</button>
-        <button onclick="imgInput.click()">🖼</button>
-    </div>
+<div class="container">
+  <h1>Clicker</h1>
+  <div class="score" id="score">0</div>
+  <button onclick="clickScore()">TAP</button>
+  <button class="upgrade" onclick="buyUpgrade()">+1 per click (10)</button>
 </div>
-
-<div class="warning">TURN DEVICE</div>
-
-<!-- CANVAS LAYER -->
-<div id="wrap">
-    <canvas id="canvas"></canvas>
-</div>
-
-<input type="file" id="imgInput" style="display:none">
 
 <script>
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
+  let score = 0;
+  let perClick = 1;
+  let upgradeCost = 10;
 
-let objects=[], selected=null, drag=false, handle=null;
+  function updateUI() {
+    document.getElementById("score").innerText = score;
+    document.querySelector(".upgrade").innerText =
+      "+" + perClick + " per click (" + upgradeCost + ")";
+  }
 
-/* Menu */
-function toggleMenu(){
-    let m=document.getElementById("menu");
-    m.style.display = (m.style.display==="flex")?"none":"flex";
-}
+  function clickScore() {
+    score += perClick;
+    updateUI();
+  }
 
-/* Canvas size auto (CSS handles 16:9) */
-function fit(){
-    canvas.width = 1920;
-    canvas.height = 1080;
-}
-fit();
-
-/* Add */
-function addRect(){ objects.push({type:"rect",x:100,y:100,w:200,h:120}); draw(); }
-function addCircle(){ objects.push({type:"circle",x:200,y:200,r:60}); draw(); }
-
-imgInput.onchange=e=>{
-    let img=new Image();
-    img.onload=()=>{
-        let scale=150/img.width;
-        objects.push({
-            type:"img",
-            img,
-            x:100,y:100,
-            w:img.width*scale,
-            h:img.height*scale,
-            ratio:img.width/img.height
-        });
-        draw();
-    };
-    img.src=URL.createObjectURL(e.target.files[0]);
-};
-
-/* Draw */
-function draw(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    objects.forEach(o=>{
-        ctx.fillStyle="#aaa";
-
-        if(o.type==="rect") ctx.fillRect(o.x,o.y,o.w,o.h);
-
-        if(o.type==="circle"){
-            ctx.beginPath();
-            ctx.arc(o.x,o.y,o.r,0,Math.PI*2);
-            ctx.fill();
-        }
-
-        if(o.type==="img"){
-            ctx.drawImage(o.img,o.x,o.y,o.w,o.h);
-        }
-
-        if(o===selected) drawHandles(o);
-    });
-}
-
-/* Handles */
-function drawHandles(o){
-    ctx.fillStyle="black";
-    getHandles(o).forEach(h=>{
-        ctx.fillRect(h.x-4,h.y-4,8,8);
-    });
-}
-
-function getHandles(o){
-    if(o.type==="circle"){
-        return [{x:o.x+o.r,y:o.y}];
+  function buyUpgrade() {
+    if (score >= upgradeCost) {
+      score -= upgradeCost;
+      perClick++;
+      upgradeCost = Math.floor(upgradeCost * 1.5);
+      updateUI();
     }
-    return [
-        {x:o.x,y:o.y},
-        {x:o.x+o.w,y:o.y},
-        {x:o.x,y:o.y+o.h},
-        {x:o.x+o.w,y:o.y+o.h}
-    ];
-}
+  }
 
-/* Input coords fix (16:9 mapping safe) */
-function pos(e){
-    let r=canvas.getBoundingClientRect();
-    let t=e.touches?e.touches[0]:e;
-
-    let scaleX = canvas.width / r.width;
-    let scaleY = canvas.height / r.height;
-
-    return {
-        x:(t.clientX-r.left)*scaleX,
-        y:(t.clientY-r.top)*scaleY
-    };
-}
-
-canvas.onmousedown=start;
-canvas.onmousemove=move;
-canvas.onmouseup=end;
-
-canvas.ontouchstart=start;
-canvas.ontouchmove=move;
-canvas.ontouchend=end;
-
-function start(e){
-    let p=pos(e);
-    selected=null; handle=null;
-
-    for(let o of [...objects].reverse()){
-        if(o.type!=="circle"){
-            if(p.x>o.x&&p.x<o.x+o.w&&p.y>o.y&&p.y<o.y+o.h){
-                selected=o; drag=true; return;
-            }
-        }
-    }
-}
-
-function move(e){
-    if(!selected) return;
-    let p=pos(e);
-
-    if(drag){
-        if(selected.type==="circle"){
-            selected.x=p.x;
-            selected.y=p.y;
-        } else {
-            selected.x=p.x-selected.w/2;
-            selected.y=p.y-selected.h/2;
-        }
-    }
-
-    draw();
-}
-
-function end(){
-    drag=false;
-}
-
-draw();
+  updateUI();
 </script>
 
 </body>
