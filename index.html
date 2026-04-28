@@ -3,6 +3,7 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Lazy Clicker</title>
+
 <style>
   html, body {
     margin: 0;
@@ -24,13 +25,6 @@
 
   .score { font-size: 36px; margin: 10px 0; }
 
-  .offline {
-    font-size: 12px;
-    opacity: 0.7;
-    margin-bottom: 10px;
-    min-height: 14px;
-  }
-
   button {
     width: 100%;
     padding: 16px;
@@ -47,19 +41,48 @@
     color: #fff;
     border: 1px solid #fff;
   }
+
+  /* POPUP */
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    display: none;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .box {
+    border: 1px solid #fff;
+    padding: 20px;
+    max-width: 280px;
+  }
+
+  .box button {
+    margin-top: 10px;
+    background: #fff;
+    color: #000;
+  }
 </style>
 </head>
 <body>
 
 <div class="container">
   <div class="score" id="score">0</div>
-  <div class="offline" id="offline"></div>
 
   <button class="tap" id="tapBtn">TAP</button>
 
   <button class="upgrade" id="clickUpgrade"></button>
   <button class="upgrade" id="autoUpgrade"></button>
   <button class="upgrade" id="multiUpgrade"></button>
+</div>
+
+<!-- OFFLINE POPUP -->
+<div class="modal" id="modal">
+  <div class="box">
+    <div id="offlineText">you earned something</div>
+    <button onclick="closeModal()">ok</button>
+  </div>
 </div>
 
 <script>
@@ -72,46 +95,59 @@ let clickLvl = 0;
 let autoLvl = 0;
 let multiLvl = 0;
 
-const capHours = 8; // offline cap so it doesn’t go crazy
-
 function cost(b,l,s){ return Math.floor(b * Math.pow(s,l)); }
 
+/* LOAD */
 function load(){
   const s = JSON.parse(localStorage.getItem("lazyClicker"));
-  if (s) Object.assign(window, s);
+  if (s){
+    score = s.score ?? 0;
+    perClick = s.perClick ?? 1;
+    auto = s.auto ?? 0;
+    multi = s.multi ?? 1;
+
+    clickLvl = s.clickLvl ?? 0;
+    autoLvl = s.autoLvl ?? 0;
+    multiLvl = s.multiLvl ?? 0;
+  }
 
   // OFFLINE EARNINGS
   const last = localStorage.getItem("lastTime");
-  if (last){
-    const diff = (Date.now() - parseInt(last)) / 1000; // seconds
-    const hours = Math.min(diff / 3600, capHours);
+  let earned = 0;
 
-    const earned = Math.floor(hours * auto * 60 * multi);
+  if (last){
+    const diff = (Date.now() - parseInt(last)) / 1000;
+    const hours = Math.min(diff / 3600, 8);
+
+    earned = Math.floor(hours * auto * 60 * multi);
 
     if (earned > 0){
       score += earned;
-      document.getElementById("offline").innerText =
-        "offline: +" + earned;
+      showModal(earned);
     }
   }
 }
 
+/* SAVE */
 function save(){
   localStorage.setItem("lazyClicker", JSON.stringify({
     score, perClick, auto, multi,
     clickLvl, autoLvl, multiLvl
   }));
+
   localStorage.setItem("lastTime", Date.now());
 }
 
+/* UI */
 function update(){
-  document.getElementById("score").innerText = Math.floor(score);
+  scoreEl.innerText = Math.floor(score);
 
   clickUpgrade.innerText = "+tap ("+cost(10,clickLvl,1.4)+")";
   autoUpgrade.innerText = "+auto ("+cost(25,autoLvl,1.5)+")";
   multiUpgrade.innerText = "x multi ("+cost(50,multiLvl,1.6)+")";
 }
 
+/* GAME */
 function tap(){
   score += perClick * multi;
   update(); save();
@@ -141,16 +177,31 @@ function buyMulti(){
   }
 }
 
-setInterval(()=>{
-  score += auto * multi;
-  update(); save();
-},1000);
+/* POPUP */
+function showModal(earned){
+  document.getElementById("offlineText").innerText =
+    "offline earnings: +" + earned;
 
+  document.getElementById("modal").style.display = "flex";
+}
+
+function closeModal(){
+  document.getElementById("modal").style.display = "none";
+}
+
+/* EVENTS */
 tapBtn.onpointerdown = tap;
 clickUpgrade.onpointerdown = buyClick;
 autoUpgrade.onpointerdown = buyAuto;
 multiUpgrade.onpointerdown = buyMulti;
 
+/* AUTO */
+setInterval(()=>{
+  score += auto * multi;
+  update(); save();
+},1000);
+
+/* START */
 load();
 update();
 </script>
