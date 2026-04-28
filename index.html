@@ -2,161 +2,157 @@
 <html lang="en">
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Clicker</title>
+<title>Lazy Clicker</title>
 <style>
-  html,body{
-    margin:0;
-    background:#000;
-    color:#fff;
-    font-family:sans-serif;
-    height:100%;
-    touch-action:manipulation;
+  html, body {
+    margin: 0;
+    background: #000;
+    color: #fff;
+    font-family: sans-serif;
+    height: 100%;
+    touch-action: manipulation;
   }
-  body{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    text-align:center;
+
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
   }
-  .container{width:100%;max-width:320px;}
-  .score{font-size:36px;margin:10px 0;}
-  .info{font-size:12px;opacity:.7;margin-bottom:10px;}
-  button{
-    width:100%;
-    padding:16px;
-    margin:6px 0;
-    border:none;
-    border-radius:10px;
-    font-size:15px;
+
+  .container { width: 100%; max-width: 320px; }
+
+  .score { font-size: 36px; margin: 10px 0; }
+
+  .offline {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-bottom: 10px;
+    min-height: 14px;
   }
-  .tap{background:#fff;color:#000;}
-  .up{background:#111;color:#fff;border:1px solid #fff;}
+
+  button {
+    width: 100%;
+    padding: 16px;
+    margin: 6px 0;
+    border-radius: 10px;
+    border: none;
+    font-size: 15px;
+  }
+
+  .tap { background: #fff; color: #000; }
+
+  .upgrade {
+    background: #111;
+    color: #fff;
+    border: 1px solid #fff;
+  }
 </style>
 </head>
 <body>
 
 <div class="container">
   <div class="score" id="score">0</div>
-  <div class="info" id="offline"></div>
+  <div class="offline" id="offline"></div>
 
   <button class="tap" id="tapBtn">TAP</button>
-  <button class="up" id="clickUp"></button>
-  <button class="up" id="autoUp"></button>
-  <button class="up" id="speedUp"></button>
+
+  <button class="upgrade" id="clickUpgrade"></button>
+  <button class="upgrade" id="autoUpgrade"></button>
+  <button class="upgrade" id="multiUpgrade"></button>
 </div>
 
 <script>
-let score=0;
-let perClick=1;
-let auto=0;
+let score = 0;
+let perClick = 1;
+let auto = 0;
+let multi = 1;
 
-let clickLvl=0;
-let autoLvl=0;
-let speedLvl=0;
+let clickLvl = 0;
+let autoLvl = 0;
+let multiLvl = 0;
 
-let intervalTime=1000;
-let loop;
+const capHours = 8; // offline cap so it doesn’t go crazy
 
-function cost(base,lvl,mult){
-  return Math.floor(base*Math.pow(mult,lvl));
-}
+function cost(b,l,s){ return Math.floor(b * Math.pow(s,l)); }
 
 function load(){
-  const s = JSON.parse(localStorage.getItem("save"));
-  if(!s) return;
+  const s = JSON.parse(localStorage.getItem("lazyClicker"));
+  if (s) Object.assign(window, s);
 
-  score=s.score||0;
-  perClick=s.perClick||1;
-  auto=s.auto||0;
-  clickLvl=s.clickLvl||0;
-  autoLvl=s.autoLvl||0;
-  speedLvl=s.speedLvl||0;
-  intervalTime=s.intervalTime||1000;
-  s.lastTime && offlineGain(s.lastTime);
-}
+  // OFFLINE EARNINGS
+  const last = localStorage.getItem("lastTime");
+  if (last){
+    const diff = (Date.now() - parseInt(last)) / 1000; // seconds
+    const hours = Math.min(diff / 3600, capHours);
 
-function save(){
-  localStorage.setItem("save",JSON.stringify({
-    score,perClick,auto,
-    clickLvl,autoLvl,speedLvl,
-    intervalTime,
-    lastTime:Date.now()
-  }));
-}
+    const earned = Math.floor(hours * auto * 60 * multi);
 
-function offlineGain(last){
-  let diff=(Date.now()-last)/1000;
-  let gain=diff*auto;
-  if(gain>0){
-    score+=gain;
-    offline.innerText="+ "+Math.floor(gain)+" offline";
-    setTimeout(()=>offline.innerText="",3000);
+    if (earned > 0){
+      score += earned;
+      document.getElementById("offline").innerText =
+        "offline: +" + earned;
+    }
   }
 }
 
-function update(){
-  scoreEl.innerText=Math.floor(score);
-
-  clickUp.innerText="+tap ("+cost(10,clickLvl,1.4)+")";
-  autoUp.innerText="+auto ("+cost(25,autoLvl,1.5)+")";
-  speedUp.innerText="speed ("+cost(40,speedLvl,1.6)+")";
+function save(){
+  localStorage.setItem("lazyClicker", JSON.stringify({
+    score, perClick, auto, multi,
+    clickLvl, autoLvl, multiLvl
+  }));
+  localStorage.setItem("lastTime", Date.now());
 }
 
-// GAME
+function update(){
+  document.getElementById("score").innerText = Math.floor(score);
+
+  clickUpgrade.innerText = "+tap ("+cost(10,clickLvl,1.4)+")";
+  autoUpgrade.innerText = "+auto ("+cost(25,autoLvl,1.5)+")";
+  multiUpgrade.innerText = "x multi ("+cost(50,multiLvl,1.6)+")";
+}
+
 function tap(){
-  score+=perClick;
+  score += perClick * multi;
   update(); save();
 }
 
 function buyClick(){
-  let c=cost(10,clickLvl,1.4);
+  let c = cost(10,clickLvl,1.4);
   if(score>=c){
-    score-=c;
-    perClick++;
-    clickLvl++;
+    score-=c; perClick++; clickLvl++;
     update(); save();
   }
 }
 
 function buyAuto(){
-  let c=cost(25,autoLvl,1.5);
+  let c = cost(25,autoLvl,1.5);
   if(score>=c){
-    score-=c;
-    auto+=0.5;
-    autoLvl++;
-    restart();
+    score-=c; auto+=0.5; autoLvl++;
     update(); save();
   }
 }
 
-function buySpeed(){
-  let c=cost(40,speedLvl,1.6);
+function buyMulti(){
+  let c = cost(50,multiLvl,1.6);
   if(score>=c){
-    score-=c;
-    speedLvl++;
-    intervalTime*=0.85;
-    restart();
+    score-=c; multi+=0.2; multiLvl++;
     update(); save();
   }
 }
 
-function restart(){
-  clearInterval(loop);
-  loop=setInterval(()=>{
-    score+=auto;
-    update();
-  },intervalTime);
-}
+setInterval(()=>{
+  score += auto * multi;
+  update(); save();
+},1000);
 
-// INIT
-tapBtn.onpointerdown=tap;
-clickUp.onpointerdown=buyClick;
-autoUp.onpointerdown=buyAuto;
-speedUp.onpointerdown=buySpeed;
+tapBtn.onpointerdown = tap;
+clickUpgrade.onpointerdown = buyClick;
+autoUpgrade.onpointerdown = buyAuto;
+multiUpgrade.onpointerdown = buyMulti;
 
 load();
 update();
-restart();
 </script>
 
 </body>
