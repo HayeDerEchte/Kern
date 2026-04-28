@@ -2,197 +2,161 @@
 <html lang="en">
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Lazy Clicker+</title>
+<title>Clicker</title>
 <style>
-  html, body {
-    margin: 0;
-    background: #000;
-    color: #fff;
-    font-family: sans-serif;
-    height: 100%;
-    touch-action: manipulation;
+  html,body{
+    margin:0;
+    background:#000;
+    color:#fff;
+    font-family:sans-serif;
+    height:100%;
+    touch-action:manipulation;
   }
-
-  body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
+  body{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
   }
-
-  .container {
-    width: 100%;
-    max-width: 320px;
+  .container{width:100%;max-width:320px;}
+  .score{font-size:36px;margin:10px 0;}
+  .info{font-size:12px;opacity:.7;margin-bottom:10px;}
+  button{
+    width:100%;
+    padding:16px;
+    margin:6px 0;
+    border:none;
+    border-radius:10px;
+    font-size:15px;
   }
-
-  .score {
-    font-size: 36px;
-    margin: 10px 0;
-  }
-
-  .tutorial {
-    font-size: 13px;
-    opacity: 0.8;
-    margin-bottom: 10px;
-    transition: opacity 0.4s;
-  }
-
-  .tutorial.hide { opacity: 0; }
-
-  button {
-    width: 100%;
-    padding: 16px;
-    margin: 6px 0;
-    border-radius: 10px;
-    font-size: 15px;
-    border: none;
-  }
-
-  .tap { background: #fff; color: #000; }
-  .upgrade { background: #111; color: #fff; border: 1px solid #fff; }
-
-  .popup {
-    font-size: 14px;
-    margin-bottom: 8px;
-    opacity: 0.8;
-  }
+  .tap{background:#fff;color:#000;}
+  .up{background:#111;color:#fff;border:1px solid #fff;}
 </style>
 </head>
 <body>
 
 <div class="container">
   <div class="score" id="score">0</div>
-  <div class="popup" id="offline"></div>
-  <div class="tutorial" id="tutorial"></div>
+  <div class="info" id="offline"></div>
 
   <button class="tap" id="tapBtn">TAP</button>
-
-  <button class="upgrade" id="clickUpgrade"></button>
-  <button class="upgrade" id="autoUpgrade"></button>
-  <button class="upgrade" id="speedUpgrade"></button>
-  <button class="upgrade" id="multiUpgrade"></button>
+  <button class="up" id="clickUp"></button>
+  <button class="up" id="autoUp"></button>
+  <button class="up" id="speedUp"></button>
 </div>
 
 <script>
-let score=0, perClick=1, auto=0, multi=1;
-let clickLvl=0, autoLvl=0, speedLvl=0, multiLvl=0;
-let autoInterval = 1000;
-let tutorialStep=0;
+let score=0;
+let perClick=1;
+let auto=0;
 
-function cost(b,l,s){ return Math.floor(b*Math.pow(s,l)); }
+let clickLvl=0;
+let autoLvl=0;
+let speedLvl=0;
+
+let intervalTime=1000;
+let loop;
+
+function cost(base,lvl,mult){
+  return Math.floor(base*Math.pow(mult,lvl));
+}
 
 function load(){
-  const s = JSON.parse(localStorage.getItem("lazyClicker"));
-  if(s) Object.assign(window,s);
+  const s = JSON.parse(localStorage.getItem("save"));
+  if(!s) return;
+
+  score=s.score||0;
+  perClick=s.perClick||1;
+  auto=s.auto||0;
+  clickLvl=s.clickLvl||0;
+  autoLvl=s.autoLvl||0;
+  speedLvl=s.speedLvl||0;
+  intervalTime=s.intervalTime||1000;
+  s.lastTime && offlineGain(s.lastTime);
 }
 
 function save(){
-  localStorage.setItem("lazyClicker", JSON.stringify({
-    score, perClick, auto, multi,
-    clickLvl, autoLvl, speedLvl, multiLvl,
-    autoInterval, tutorialStep,
-    lastTime: Date.now()
+  localStorage.setItem("save",JSON.stringify({
+    score,perClick,auto,
+    clickLvl,autoLvl,speedLvl,
+    intervalTime,
+    lastTime:Date.now()
   }));
 }
 
-function update(){
-  scoreEl.innerText = Math.floor(score);
-
-  clickUpgrade.innerText = "+tap ("+cost(10,clickLvl,1.4)+")";
-  autoUpgrade.innerText = "+auto ("+cost(25,autoLvl,1.5)+")";
-  speedUpgrade.innerText = "auto speed ("+cost(40,speedLvl,1.6)+")";
-  multiUpgrade.innerText = "x multi ("+cost(50,multiLvl,1.6)+")";
-}
-
-// ===== OFFLINE EARNINGS =====
-function handleOffline(){
-  const saveData = JSON.parse(localStorage.getItem("lazyClicker"));
-  if(!saveData || !saveData.lastTime) return;
-
-  let diff = (Date.now() - saveData.lastTime)/1000;
-  let gain = diff * auto * multi;
-
-  if(gain > 0){
-    score += gain;
-    offline.innerText = "+ " + Math.floor(gain) + " while offline";
-    setTimeout(()=> offline.innerText="", 4000);
+function offlineGain(last){
+  let diff=(Date.now()-last)/1000;
+  let gain=diff*auto;
+  if(gain>0){
+    score+=gain;
+    offline.innerText="+ "+Math.floor(gain)+" offline";
+    setTimeout(()=>offline.innerText="",3000);
   }
 }
 
-// ===== GAME ACTIONS =====
+function update(){
+  scoreEl.innerText=Math.floor(score);
+
+  clickUp.innerText="+tap ("+cost(10,clickLvl,1.4)+")";
+  autoUp.innerText="+auto ("+cost(25,autoLvl,1.5)+")";
+  speedUp.innerText="speed ("+cost(40,speedLvl,1.6)+")";
+}
+
+// GAME
 function tap(){
-  score += perClick * multi;
-  if(tutorialStep===0) tutorialStep=1;
-  updateTutorial(); update(); save();
+  score+=perClick;
+  update(); save();
 }
 
 function buyClick(){
-  let c = cost(10,clickLvl,1.4);
+  let c=cost(10,clickLvl,1.4);
   if(score>=c){
-    score-=c; perClick++; clickLvl++;
+    score-=c;
+    perClick++;
+    clickLvl++;
     update(); save();
   }
 }
 
 function buyAuto(){
-  let c = cost(25,autoLvl,1.5);
+  let c=cost(25,autoLvl,1.5);
   if(score>=c){
-    score-=c; auto+=0.5; autoLvl++;
+    score-=c;
+    auto+=0.5;
+    autoLvl++;
+    restart();
     update(); save();
   }
 }
 
 function buySpeed(){
-  let c = cost(40,speedLvl,1.6);
+  let c=cost(40,speedLvl,1.6);
   if(score>=c){
     score-=c;
     speedLvl++;
-    autoInterval *= 0.85; // faster
-    startAutoLoop();
+    intervalTime*=0.85;
+    restart();
     update(); save();
   }
 }
 
-function buyMulti(){
-  let c = cost(50,multiLvl,1.6);
-  if(score>=c){
-    score-=c; multi+=0.2; multiLvl++;
-    update(); save();
-  }
-}
-
-// ===== AUTO LOOP =====
-let loop;
-function startAutoLoop(){
+function restart(){
   clearInterval(loop);
-  loop = setInterval(()=>{
-    score += auto * multi;
-    update(); save();
-  }, autoInterval);
+  loop=setInterval(()=>{
+    score+=auto;
+    update();
+  },intervalTime);
 }
 
-// ===== TUTORIAL =====
-function updateTutorial(){
-  if(tutorialStep===0) tutorial.innerText="tap it";
-  else if(tutorialStep===1) tutorial.innerText="yeah ok buy stuff";
-  else if(tutorialStep>=2){
-    tutorial.innerText="you got it";
-    setTimeout(()=> tutorial.classList.add("hide"), 800);
-  }
-}
-
-// ===== INIT =====
+// INIT
 tapBtn.onpointerdown=tap;
-clickUpgrade.onpointerdown=buyClick;
-autoUpgrade.onpointerdown=buyAuto;
-speedUpgrade.onpointerdown=buySpeed;
-multiUpgrade.onpointerdown=buyMulti;
+clickUp.onpointerdown=buyClick;
+autoUp.onpointerdown=buyAuto;
+speedUp.onpointerdown=buySpeed;
 
 load();
-handleOffline();
 update();
-updateTutorial();
-startAutoLoop();
+restart();
 </script>
 
 </body>
