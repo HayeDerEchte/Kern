@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beat Cut Editor</title>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:sans-serif;
+}
+
+body{
+    background:#0d0d0d;
+    color:white;
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.app{
+    width:900px;
+    background:#151515;
+    border:1px solid #262626;
+    border-radius:18px;
+    padding:25px;
+}
+
+h1{
+    margin-bottom:20px;
+    font-size:22px;
+}
+
+.row{
+    display:flex;
+    gap:15px;
+}
+
+.card{
+    flex:1;
+    background:#1c1c1c;
+    border:1px solid #2d2d2d;
+    padding:15px;
+    border-radius:14px;
+}
+
+label{
+    display:block;
+    margin-bottom:10px;
+    color:#aaa;
+    font-size:14px;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    background:#111;
+    color:white;
+    border:none;
+    border-radius:10px;
+}
+
+button{
+    margin-top:20px;
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:12px;
+    background:white;
+    color:black;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+button:hover{
+    opacity:0.9;
+}
+
+.status{
+    margin-top:15px;
+    color:#888;
+    font-size:14px;
+}
+
+#result{
+    display:none;
+    width:100%;
+    margin-top:20px;
+    border-radius:14px;
+    background:black;
+}
+
+canvas{
+    display:none;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<h1>Beat Cut Video Editor</h1>
+
+<div class="row">
+
+<div class="card">
+<label>Audio Video</label>
+<input type="file" id="audioVideo" accept="video/*">
+</div>
+
+<div class="card">
+<label>Video To Edit</label>
+<input type="file" id="editVideo" accept="video/*">
+</div>
+
+</div>
+
+<button id="generate">Generate Video</button>
+
+<div class="status" id="status">
+Idle
+</div>
+
+<video id="result" controls></video>
+
+<canvas id="canvas"></canvas>
+
+</div>
+
+<script>
+const audioInput = document.getElementById("audioVideo");
+const editInput = document.getElementById("editVideo");
+const button = document.getElementById("generate");
+const statusText = document.getElementById("status");
+const resultVideo = document.getElementById("result");
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+button.onclick = async () => {
+
+    resultVideo.style.display = "none";
+
+    const audioFile = audioInput.files[0];
+    const editFile = editInput.files[0];
+
+    if(!audioFile || !editFile){
+        alert("Upload both videos");
+        return;
+    }
+
+    statusText.innerText = "Loading...";
+
+    const audioVideo = document.createElement("video");
+    const editVideo = document.createElement("video");
+
+    audioVideo.src = URL.createObjectURL(audioFile);
+    editVideo.src = URL.createObjectURL(editFile);
+
+    audioVideo.muted = true;
+    editVideo.muted = true;
+
+    await Promise.all([
+        loadVideo(audioVideo),
+        loadVideo(editVideo)
+    ]);
+
+    canvas.width = editVideo.videoWidth;
+    canvas.height = editVideo.videoHeight;
+
+    const stream = canvas.captureStream(30);
+
+    const audioCtx = new AudioContext();
+
+    statusText.innerText = "Analyzing beats...";
+
+    const arrayBuffer = await audioFile.arrayBuffer();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+    const beats = detectBeats(audioBuffer);
+
+    statusText.innerText = "Rendering video...";
+
+    const recorder = new MediaRecorder(stream,{
+        mimeType:"video/webm"
+    });
+
+    const chunks = [];
+
+    recorder.ondataavailable = e=>{
+        if(e.data.size > 0){
+            chunks.push(e.data);
+        }
+    };
+
+    recorder.start();
+
+    for(let i = 0; i < beats.length; i++){
+
+        let t = beats[i] + (Math.random() * 0.1);
+
+        if(t >= editVideo.duration){
+            t = editVideo.duration - 0.1;
+        }
+
+        editVideo.currentTime = t;
+
+        await seekDone(editVideo);
+
+        ctx.drawImage(
+            editVideo,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+
+        statusText.innerText =
+            "Rendering " +
+            Math.floor((i / beats.length) * 100) +
+            "%";
+
+        await sleep(70);
+    }
+
+    recorder.stop();
+
+    recorder.onstop = ()=>{
+
+        const blob = new Blob(chunks,{
+            type:"video/webm"
+        });
+
+        const url = URL.createObjectURL(blob);
+
+        resultVideo.src = url;
+
+        resultVideo.style.display = "block";
+
+        statusText.innerText = "Finished";
+    };
+};
+
+function loadVideo(video){
+    return new Promise(resolve=>{
+        video.onloadedmetadata = ()=>{
+            resolve();
+        };
+    });
+}
+
+function seekDone(video){
+    return new Promise(resolve=>{
+        video.onseeked = ()=>{
+            resolve();
+        };
+    });
+}
+
+function sleep(ms){
+    return new Promise(resolve=>{
+        setTimeout(resolve,ms);
+    });
+}
+
+function detectBeats(audioBuffer){
+
+    const data = audioBuffer.getChannelData(0);
+
+    const beats = [];
+
+    const size = 4410;
+
+    let lastBeat = 0;
+
+    for(let i = 0; i < data.length; i += size){
+
+        let sum = 0;
+
+        for(let j = 0; j < size; j++){
+            sum += Math.abs(data[i + j] || 0);
+        }
+
+        const avg = sum / size;
+
+        if(avg > 0.22){
+
+            const time = i / audioBuffer.sampleRate;
+
+            if(time - lastBeat > 0.18){
+                beats.push(time);
+                lastBeat = time;
+            }
+        }
+    }
+
+    return beats;
+}
+</script>
+
+</body>
+</html>
